@@ -25,7 +25,6 @@ services:
     buildCommand: npm install && npm run build
     staticPublishPath: ./frontend/build
     rootDir: ./frontend
-    plan: free
     envVars:
       - key: REACT_APP_API_URL
         value: https://course-recommender-api.onrender.com/api
