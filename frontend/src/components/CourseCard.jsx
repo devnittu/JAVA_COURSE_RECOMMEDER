@@ -8,15 +8,15 @@ const PLATFORM_ICONS = {
   'Helsinki University': '🏛️',
 };
 
-const LEVEL_COLORS = {
-  Beginner: '#4ade80',
-  Intermediate: '#facc15',
-  Advanced: '#f87171',
-};
-
-const CourseCard = ({ course, index }) => {
+const CourseCard = ({ course, index, isSaved, onToggleSave }) => {
   const icon = PLATFORM_ICONS[course.platform] || '📖';
-  const levelColor = LEVEL_COLORS[course.level] || '#aaaaaa';
+  const isRecommended = course.score >= 15;
+
+  const handleSaveClick = (e) => {
+    e.preventDefault();   // don't follow the card link
+    e.stopPropagation();
+    if (onToggleSave) onToggleSave(course.id);
+  };
 
   return (
     <a
@@ -33,17 +33,30 @@ const CourseCard = ({ course, index }) => {
         <span className="card-score">Score: {course.score}</span>
       </div>
 
+      {isRecommended && (
+        <div className="card-tag-recommended">✓ Recommended</div>
+      )}
+
       <h3 className="card-title">{course.title}</h3>
 
       <div className="card-footer">
         <span className="card-category">{course.category}</span>
-        <span className="card-level" style={{ color: levelColor }}>
-          {course.level}
-        </span>
+        <span className={`card-level ${course.level}`}>{course.level}</span>
         <span className="card-rating">⭐ {course.rating}</span>
       </div>
 
-      <div className="card-cta">View Course →</div>
+      <div className="card-actions">
+        <span className="card-cta">View Course →</span>
+        {onToggleSave && (
+          <button
+            className={`card-save-btn ${isSaved ? 'saved' : ''}`}
+            onClick={handleSaveClick}
+            id={`save-btn-${course.id}`}
+          >
+            {isSaved ? '✓ Saved' : '+ Save'}
+          </button>
+        )}
+      </div>
     </a>
   );
 };
