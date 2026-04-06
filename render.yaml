@@ -8,11 +8,15 @@ services:
     plan: free
     envVars:
       - key: DB_URL
-        sync: false   # Set manually in Render dashboard
+        value: jdbc:mysql://sql12.freesqldatabase.com:3306/sql12822360?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
       - key: DB_USER
-        sync: false
+        value: sql12822360
       - key: DB_PASS
-        sync: false
+        value: Z5YPFYWP31
+      - key: GOOGLE_CLIENT_ID
+        value: 396278717491-u2r9lbc1psc9oqm8qc08s2uttp0a3jq4.apps.googleusercontent.com
+      - key: JWT_SECRET
+        value: course-rec-secret-key-2024-production
 
   # ── Frontend: React Static Site ───────────────────────
   - type: web
@@ -24,4 +28,6 @@ services:
     plan: free
     envVars:
       - key: REACT_APP_API_URL
-        sync: false   # Set to your backend URL e.g. https://course-recommender-api.onrender.com/api
+        value: https://course-recommender-api.onrender.com/api
+      - key: REACT_APP_GOOGLE_CLIENT_ID
+        value: 396278717491-u2r9lbc1psc9oqm8qc08s2uttp0a3jq4.apps.googleusercontent.com
