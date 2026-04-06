@@ -30,3 +30,7 @@ services:
         value: https://course-recommender-api-nsnj.onrender.com/api
       - key: REACT_APP_GOOGLE_CLIENT_ID
         value: 396278717491-u2r9lbc1psc9oqm8qc08s2uttp0a3jq4.apps.googleusercontent.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
