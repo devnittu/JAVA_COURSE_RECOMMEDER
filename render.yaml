@@ -8,11 +8,11 @@ services:
     plan: free
     envVars:
       - key: DB_URL
-        value: jdbc:mysql://sql12.freesqldatabase.com:3306/sql12822360?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+        value: jdbc:mysql://mysql-375dc89b-practise123.a.aivencloud.com:22786/defaultdb?sslMode=REQUIRED
       - key: DB_USER
-        value: sql12822360
+        value: avnadmin
       - key: DB_PASS
-        value: Z5YPFYWP31
+        value: INSERT_PASSWORD_HERE
       - key: GOOGLE_CLIENT_ID
         value: 396278717491-u2r9lbc1psc9oqm8qc08s2uttp0a3jq4.apps.googleusercontent.com
       - key: JWT_SECRET
