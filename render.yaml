@@ -1,0 +1,27 @@
+services:
+  # ── Backend: Spring Boot (Docker) ──────────────────────
+  - type: web
+    name: course-recommender-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: DB_URL
+        sync: false   # Set manually in Render dashboard
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+
+  # ── Frontend: React Static Site ───────────────────────
+  - type: web
+    name: course-recommender-ui
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./frontend/build
+    rootDir: ./frontend
+    plan: free
+    envVars:
+      - key: REACT_APP_API_URL
+        sync: false   # Set to your backend URL e.g. https://course-recommender-api.onrender.com/api
