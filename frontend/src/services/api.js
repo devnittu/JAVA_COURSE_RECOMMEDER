@@ -51,6 +51,18 @@ export const getAllCourses = async () => {
   return response.data;
 };
 
+// Search courses by keyword (hits /api/courses/search?q=...)
+export const searchCourses = async (query) => {
+  const response = await api.get('/courses/search', { params: { q: query } });
+  return response.data;
+};
+
+// Trending / featured courses for homepage auto-load
+export const getTrendingCourses = async () => {
+  const response = await api.get('/courses/trending');
+  return response.data;
+};
+
 // ════════════════════════════
 //  Dashboard (saved courses)
 // ════════════════════════════

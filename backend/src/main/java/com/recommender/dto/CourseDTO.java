@@ -16,4 +16,5 @@ public class CourseDTO {
     private String level;
     private Double rating;
     private int score;
+    private String thumbnail;
 }

@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { googleAuth } from '../services/api';
 
 const FEATURES = [
-  { icon: '🎯', text: 'AI-powered course recommendations tailored to you' },
+  { icon: '🎯', text: 'AI-powered recommendations tailored to your level' },
   { icon: '📚', text: 'Courses from Udemy, Coursera, YouTube & more' },
   { icon: '💾', text: 'Save your favourite courses to your dashboard' },
   { icon: '⚡', text: 'Filter by category & skill level in seconds' },
@@ -21,8 +21,6 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
     try {
-      // Exchange access token for user info then get ID token via backend
-      // @react-oauth/google returns an access_token; we send it wrapped
       const data = await googleAuth(tokenResponse.access_token);
       login(data.user, data.token);
       navigate('/home');

@@ -33,4 +33,7 @@ public class Course {
 
     @Column(nullable = false)
     private Double rating;
+
+    @Column(length = 600)
+    private String thumbnail;
 }

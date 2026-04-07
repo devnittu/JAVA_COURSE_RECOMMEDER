@@ -49,7 +49,7 @@ public class DashboardController {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .map(c -> new CourseDTO(c.getId(), c.getTitle(), c.getPlatform(),
-                            c.getUrl(), c.getCategory(), c.getLevel(), c.getRating(), 0))
+                            c.getUrl(), c.getCategory(), c.getLevel(), c.getRating(), 0, c.getThumbnail()))
                     .collect(Collectors.toList());
 
             return ResponseEntity.ok(courses);
