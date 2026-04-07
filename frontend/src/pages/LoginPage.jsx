@@ -102,6 +102,7 @@ const LoginPage = () => {
           )}
         </button>
 
+
         <div className="login-divider">or</div>
 
         <p className="login-terms">

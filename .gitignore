@@ -39,3 +39,6 @@ Thumbs.db
 # Temp / logs
 backend/*.txt
 backend/errors*.txt
+
+# Local-only Spring Boot properties (contains API keys — never commit!)
+backend/src/main/resources/application-local.properties

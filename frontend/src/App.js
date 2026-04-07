@@ -6,6 +6,7 @@ import Navbar from './components/Navbar';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import DashboardPage from './pages/DashboardPage';
+import AiChat from './components/AiChat';
 import './index.css';
 
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID ||
@@ -47,9 +48,11 @@ const AppRoutes = () => {
         </Routes>
       </main>
 
+      {user && <AiChat />}
+
       {user && (
         <footer className="footer">
-          <p>© 2024 CourseRec · Built with Spring Boot + React · Powered by curiosity 🚀</p>
+          <p>© 2024 CourseRec · Built with Spring Boot + React · Powered by Gemini AI 🤖</p>
         </footer>
       )}
     </>

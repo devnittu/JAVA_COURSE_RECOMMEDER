@@ -87,4 +87,34 @@ export const unsaveCourse = async (courseId) => {
   return response.data;
 };
 
+// ════════════════════════════
+//  AI (Gemini)
+// ════════════════════════════
+
+export const aiChat = async (message) => {
+  const response = await api.post('/ai/chat', { message });
+  return response.data;
+};
+
+export const aiRecommend = async (savedCategories) => {
+  const response = await api.post('/ai/recommend', { savedCategories });
+  return response.data;
+};
+
+export const aiStatus = async () => {
+  const response = await api.get('/ai/status');
+  return response.data;
+};
+
+// ════════════════════════════
+//  Course Detail (Web Scraper)
+// ════════════════════════════
+
+export const getCourseDetail = async (courseUrl) => {
+  const response = await api.get('/courses/detail', {
+    params: { url: courseUrl }
+  });
+  return response.data;
+};
+
 export default api;

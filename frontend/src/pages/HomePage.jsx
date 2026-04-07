@@ -161,7 +161,6 @@ const HomePage = () => {
   };
 
   const displayCourses = searched ? courses : trending;
-  const isShowingTrending = !searched && !loading;
 
   return (
     <div className="page">
