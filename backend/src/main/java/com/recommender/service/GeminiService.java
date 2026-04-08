@@ -143,6 +143,7 @@ public class GeminiService {
     @SuppressWarnings("unchecked")
     private String callGemini(String prompt) {
         try {
+            log.info("Gemini API key present: {}", apiKey != null && !apiKey.isBlank());
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
 
@@ -179,7 +180,7 @@ public class GeminiService {
             return text;
 
         } catch (Exception e) {
-            log.error("Gemini API call failed: {}", e.getMessage());
+            log.error("Gemini API call failed", e);
             return null;
         }
     }
