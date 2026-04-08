@@ -25,6 +25,12 @@ public class RecommendationService {
     @Value("${youtube.api.key:}")
     private String youtubeApiKey;
 
+    @Value("${udemy.client.id:}")
+    private String udemyClientId;
+
+    @Value("${udemy.client.secret:}")
+    private String udemyClientSecret;
+
     // Categories shown on the homepage trending carousel (by priority)
     private static final List<String> TRENDING_CATEGORIES = List.of(
             "Web Dev", "AI", "Python", "Java", "Data Science"
@@ -68,10 +74,13 @@ public class RecommendationService {
                         .thenComparingDouble(d -> d.getRating() != null ? -d.getRating() : 0))
                 .collect(Collectors.toList());
 
-        // If DB has no results for this category, try YouTube
+        // If DB has no results for this category, try APIs fallback
         if (scored.isEmpty() && category != null && !category.isBlank()) {
-            log.debug("No DB results for category '{}', fetching from YouTube", category);
-            return searchYouTube(category + " programming course");
+            log.debug("No DB results for category '{}', fetching from APIs", category);
+            List<CourseDTO> fallback = new ArrayList<>();
+            fallback.addAll(searchUdemy(category));
+            fallback.addAll(searchYouTube(category + " programming course"));
+            return fallback;
         }
 
         log.debug("Returning {} recommendations", scored.size());
@@ -107,17 +116,20 @@ public class RecommendationService {
 
         results.addAll(dbResults);
 
-        // ── 2. Fetch live from YouTube ──
-        List<CourseDTO> ytResults = searchYouTube(query + " course tutorial");
-        // Merge: skip YouTube results whose title closely matches a DB result
+        // ── 2. Fetch live from Udemy and YouTube ──
+        List<CourseDTO> apiResults = new ArrayList<>();
+        apiResults.addAll(searchUdemy(query));
+        apiResults.addAll(searchYouTube(query + " course tutorial"));
+        
+        // Merge: skip API results whose title closely matches a DB result
         Set<String> dbTitlesLower = dbResults.stream()
                 .map(d -> d.getTitle().toLowerCase())
                 .collect(Collectors.toSet());
 
-        for (CourseDTO yt : ytResults) {
+        for (CourseDTO apiRes : apiResults) {
             boolean duplicate = dbTitlesLower.stream()
-                    .anyMatch(t -> similarity(t, yt.getTitle().toLowerCase()) > 0.7);
-            if (!duplicate) results.add(yt);
+                    .anyMatch(t -> similarity(t, apiRes.getTitle().toLowerCase()) > 0.7);
+            if (!duplicate) results.add(apiRes);
         }
 
         // If still nothing, return top-rated DB courses
@@ -167,11 +179,14 @@ public class RecommendationService {
                 .map(c -> toDTO(c, computeTrendingScore(c)))
                 .forEach(trending::add);
 
-        // If DB is nearly empty, supplement with YouTube trending
+        // If DB is nearly empty, supplement with API trending
         if (trending.size() < 6) {
-            log.debug("Few DB trending courses, supplementing with YouTube");
-            List<CourseDTO> ytTrending = searchYouTube("programming course 2024");
-            ytTrending.stream()
+            log.debug("Few DB trending courses, supplementing with APIs");
+            List<CourseDTO> xtraTrending = new ArrayList<>();
+            xtraTrending.addAll(searchUdemy("programming course 2024"));
+            xtraTrending.addAll(searchYouTube("programming course 2024"));
+            
+            xtraTrending.stream()
                     .limit(6 - trending.size())
                     .forEach(trending::add);
         }
@@ -189,6 +204,70 @@ public class RecommendationService {
                         c -> c.getRating() != null ? -c.getRating() : 0))
                 .map(c -> toDTO(c, 0))
                 .collect(Collectors.toList());
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Udemy Affiliate API — dynamic affiliate links
+    // ─────────────────────────────────────────────────────────────
+    @SuppressWarnings("unchecked")
+    public List<CourseDTO> searchUdemy(String query) {
+        if (udemyClientId == null || udemyClientId.isBlank() || udemyClientSecret == null || udemyClientSecret.isBlank()) {
+            log.debug("Udemy Affiliate API credentials not configured, skipping");
+            return Collections.emptyList();
+        }
+
+        try {
+            String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
+            String url = "https://www.udemy.com/api-2.0/courses/?search=" + encoded + "&page_size=6";
+
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            String auth = udemyClientId + ":" + udemyClientSecret;
+            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
+            headers.set("Authorization", "Basic " + encodedAuth);
+            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
+
+            org.springframework.http.ResponseEntity<Map> responseEntity = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class);
+            Map<String, Object> response = responseEntity.getBody();
+
+            if (response == null || !response.containsKey("results")) return Collections.emptyList();
+
+            List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("results");
+            List<CourseDTO> udemyCourses = new ArrayList<>();
+
+            for (Map<String, Object> item : items) {
+                try {
+                    Number idNumber = (Number) item.get("id");
+                    String title = (String) item.get("title");
+                    String courseUrl = (String) item.get("url");
+                    String thumbUrl = (String) item.get("image_480x270");
+
+                    if (idNumber == null || title == null) continue;
+
+                    String category = detectCategory(query);
+
+                    CourseDTO dto = new CourseDTO();
+                    dto.setId(Math.abs(idNumber.longValue()));
+                    dto.setTitle(cleanTitle(title));
+                    dto.setPlatform("Udemy");
+                    dto.setUrl("https://www.udemy.com" + courseUrl);
+                    dto.setCategory(category);
+                    dto.setLevel("All Levels");
+                    dto.setRating(null);
+                    dto.setScore(9); // High score for Udemy affiliate links
+                    dto.setThumbnail(thumbUrl);
+
+                    udemyCourses.add(dto);
+                } catch (Exception e) {
+                    log.warn("Error parsing Udemy item: {}", e.getMessage());
+                }
+            }
+
+            log.debug("Udemy returned {} results for '{}'", udemyCourses.size(), query);
+            return udemyCourses;
+        } catch (Exception e) {
+            log.error("Udemy API call failed: {}", e.getMessage());
+            return Collections.emptyList();
+        }
     }
 
     // ─────────────────────────────────────────────────────────────

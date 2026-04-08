@@ -1,0 +1,143 @@
+================================================================================
+COURSE RECOMMENDER SYSTEM - COMPLETE PROJECT DOCUMENTATION
+================================================================================
+
+1. PROJECT OVERVIEW & IDE (IDEA/ARCHITECTURE)
+--------------------------------------------------------------------------------
+The Course Recommender is a full-stack web application designed to help users 
+discover and save optimal learning resources. It targets developers and learners 
+who need curated course recommendations across platforms like Udemy, Coursera, 
+YouTube, and Pluralsight.
+
+Architecture Pattern: Client-Server with Monolithic Backend (RESTful)
+- Frontend: React 18 SPA (Single Page Application)
+- Backend: Spring Boot 3.2 Monolith exposing REST APIs (Lombok 1.18.44 for JDK 25 support)
+- External APIs: Udemy Affiliate API (Dynamic courses), YouTube v3 API (Live video results)
+- Database: MySQL 8.0 Relational Database securely hosted (e.g. Aiven)
+- Authentication: Google OAuth (JWT-based token system inside Spring Boot)
+- AI Integration: Dedicated controllers handling AI queries (Chat, Recommendations)
+- Deployment: Render (Backend) and Vercel (Frontend)
+
+Design Aesthetics (The "IDE" Concept):
+- Premium dark mode UI/UX theme (Pure Black #000000 & White #FFFFFF)
+- Micro-interactions on buttons, course cards, and modals
+- Responsive CSS Grid and Flexbox for mobile/desktop layout integrity
+- Modern Typography using Google Fonts (Inter)
+
+
+2. PROJECT IMPLEMENTATION DETAILS
+--------------------------------------------------------------------------------
+
+2.1 BACKEND IMPLEMENTATION (Java & Spring Boot)
+Structure:
+/backend/src/main/java/com/recommender
+- model/: Contains JPA Entities.
+  * Course.java (id, title, platform, url, category, level, rating)
+  * User.java (id, google_id, email, name, picture, Google Auth mappings)
+  * Interest.java (Topics users might like)
+  * SavedCourse.java (Mapping users to their saved courses with timestamps)
+
+- repository/: Interfaces extending JpaRepository. Handles DB interactions 
+  using Hibernate ORM.
+  * CourseRepository, UserRepository, SavedCourseRepository
+
+- controller/: REST API Endpoints.
+  * AuthController: Manages Google OAuth logins and token issuance.
+  * UserController: User profile interactions.
+  * RecommendationController: Core logic for ranking courses based on category, 
+    level, and ratings. 
+    (Scoring algorithm: Category match +10 points, Level match +5 points, 
+    Rating > 4.0 +3 points)
+  * CourseDetailController: Serves in-depth metadata for a specific course.
+  * DashboardController: User-specific saved items and customized data.
+  * AiController: Handles AI-powered search / natural language chat responses.
+
+- config/: Contains Security and CORS settings.
+  * JwtUtil.java: Parses and builds JSON Web Tokens for auth sessions.
+
+
+2.2 FRONTEND IMPLEMENTATION (React)
+Structure:
+/frontend/src
+- pages/: Route components.
+  * HomePage: Landing view, hero section, call-to-actions.
+  * LoginPage: Google OAuth login button.
+  * DashboardPage: Protected route displaying bookmarked/saved courses.
+
+- components/: Reusable visual components.
+  * CourseCard: Represents a single course item with hover states.
+  * CourseDetailModal: Expanded view showing more info and "Save" operations.
+  * AiChat: Natural language chat interface interacting with AiController.
+  * FilterForm: UI to pick Category (Java, AI, Web Dev) and Level.
+  * Navbar: App-wide top navigation bar.
+
+State Management & API calls:
+- The frontend relies on standard React Hooks (useState, useEffect)
+- `axios` is utilized inside `services/` logic to connect with backend REST APIs.
+
+
+2.3 DATABASE IMPLEMENTATION (MySQL Schema)
+Five core tables handle persistence:
+1. `courses`: Holds canonical repository of all courses (auto-increment keys).
+2. `interests`: Available study topics (Java, AI, Python, Web Dev).
+3. `users`: Stores registered users via Google OAuth parameters.
+4. `saved_courses`: A junction table (Many-to-Many) linking 'users' to 'courses' 
+   with constraints (ON DELETE CASCADE) to ensure referential integrity.
+
+
+3. API DOCUMENTATION
+--------------------------------------------------------------------------------
+
+Authentication:
+- Headers required for protected routes: `Authorization: Bearer <JWT_TOKEN>`
+
+Endpoints:
+[GET]  /api/health
+   -> Output: Status 200 OK (Used by Render/Load balancers for uptime checks)
+
+[POST] /api/user/login
+   -> Body: { "googleToken": "..." }
+   -> Output: { "token": "<JWT_TOKEN>", "user": {...} }
+
+[GET]  /api/recommend?category={string}&level={string}
+   -> Output: Array of ranked Course JSON objects based on scoring algorithm.
+
+[GET]  /api/courses
+   -> Output: Full list of all courses in the DB.
+
+[GET]  /api/dashboard/saved
+   -> Headers: Auth Bearer token
+   -> Output: List of User's bookmarked courses.
+
+
+4. DEPLOYMENT & ENVIRONMENT SETUP
+--------------------------------------------------------------------------------
+
+Environment Variables Needed:
+Backend:
+- SPRING_DATASOURCE_URL (Aiven MySQL string)
+- SPRING_DATASOURCE_USERNAME
+- SPRING_DATASOURCE_PASSWORD
+- JWT_SECRET
+- GOOGLE_CLIENT_ID
+- UDEMY_CLIENT_ID
+- UDEMY_CLIENT_SECRET
+- YOUTUBE_API_KEY
+- GEMINI_API_KEY
+
+Frontend:
+- REACT_APP_API_URL (points to Render app)
+- REACT_APP_GOOGLE_CLIENT_ID
+
+Run Locally:
+1. Start MySQL database: `mysql -u root < database/schema.sql`
+2. Backend: `mvn spring-boot:run` (Port 8080)
+3. Frontend: `npm install && npm start` (Port 3000)
+
+Deploy to Production:
+- Render: Use the Dockerfile provided in `backend/` to build a production image.
+- Vercel: Connect Next/React pipeline and run `npm run build`.
+
+================================================================================
+END OF DOCUMENTATION
+================================================================================
