@@ -63,41 +63,72 @@ public class CourseScraperService {
 
         // Title — og:title is most reliable
         dto.setTitle(ogTag(doc, "og:title"));
-        if (dto.getTitle() == null) dto.setTitle(doc.title());
-
-        // Description
         dto.setDescription(ogTag(doc, "og:description"));
-
-        // Thumbnail
         dto.setThumbnail(ogTag(doc, "og:image"));
 
-        // Instructor — data attribute or itemprop
+        // Instructor — data attribute, itemprop, or JSON-LD
         Element instructorEl = doc.selectFirst("[data-purpose='instructor-name'], [class*='instructor-name'], [itemprop='name']");
-        if (instructorEl != null) dto.setInstructor(instructorEl.text());
+        if (instructorEl != null) dto.setInstructor(instructorEl.text().trim());
 
         // Rating
-        Element ratingEl = doc.selectFirst("[data-purpose='rating-number'], [class*='star-rating--rating-number']");
-        if (ratingEl != null) dto.setRating(ratingEl.text());
+        Element ratingEl = doc.selectFirst("[data-purpose='rating-number'], [class*='star-rating--rating-number'], [itemprop='ratingValue']");
+        if (ratingEl != null) dto.setRating(ratingEl.text().trim());
 
         // Students
-        Element studentsEl = doc.selectFirst("[data-purpose='enrollment-count'], [class*='enrollment']");
-        if (studentsEl != null) dto.setStudents(studentsEl.text());
+        Element studentsEl = doc.selectFirst("[data-purpose='enrollment-count'], [class*='enrollment'], [itemprop='interactionCount']");
+        if (studentsEl != null) dto.setStudents(studentsEl.text().trim());
 
         // Price
-        Element priceEl = doc.selectFirst("[data-purpose='course-price-text'], [class*='price-text--price-part']");
-        if (priceEl != null) dto.setPrice(priceEl.text().trim());
+        Element priceEl = doc.selectFirst("[data-purpose='course-price-text'], [class*='price-text--price-part'], [itemprop='price'], meta[itemprop='price']");
+        if (priceEl != null) {
+            String price = priceEl.hasAttr("content") ? priceEl.attr("content") : priceEl.text();
+            dto.setPrice(price.trim());
+        }
 
         // What you'll learn
-        Elements learnEls = doc.select("[data-purpose='course-what-you-will-learn-section'] li," +
-                                       "[class*='what-you-will-learn'] li");
+        Elements learnEls = doc.select("[data-purpose='course-what-you-will-learn-section'] li, [class*='what-you-will-learn'] li, [class*='curriculum-item']");
         dto.setWhatYouLearn(extractTexts(learnEls, 8));
 
         // Requirements
-        Elements reqEls = doc.select("[class*='requirements'] li");
+        Elements reqEls = doc.select("[class*='requirements'] li, [class*='requirements'] p");
         dto.setRequirements(extractTexts(reqEls, 5));
 
-        // Duration / Level from meta
-        dto.setLevel(metaContent(doc, "skill_difficulty"));
+        // Fallback from JSON-LD structured data
+        Element jsonLd = doc.selectFirst("script[type='application/ld+json']");
+        if (jsonLd != null) {
+            String json = jsonLd.data();
+            if (dto.getTitle() == null) dto.setTitle(extractJson(json, "name"));
+            if (dto.getDescription() == null) dto.setDescription(extractJson(json, "description"));
+            if (dto.getThumbnail() == null) dto.setThumbnail(extractJson(json, "image"));
+            if (dto.getInstructor() == null) dto.setInstructor(extractJsonObject(json, "author", "name"));
+            if (dto.getRating() == null) dto.setRating(extractJson(json, "ratingValue"));
+
+            if (dto.getRatingCount() == null) {
+                String count = extractJson(json, "ratingCount");
+                if (count == null) count = extractJson(json, "reviewCount");
+                if (count != null) dto.setRatingCount(count + " ratings");
+            }
+
+            if (dto.getPrice() == null) {
+                String price = extractJsonObject(json, "offers", "price");
+                String currency = extractJsonObject(json, "offers", "priceCurrency");
+                if (price != null) dto.setPrice(currency != null ? currency + " " + price : price);
+            }
+
+            if (dto.getStudents() == null) {
+                String interactionCount = extractJson(json, "interactionCount");
+                if (interactionCount != null) dto.setStudents(interactionCount + " learners");
+            }
+
+            if (dto.getLevel() == null) dto.setLevel(extractJson(json, "educationalLevel"));
+            if (dto.getLanguage() == null) dto.setLanguage(extractJson(json, "inLanguage"));
+            if (dto.getDuration() == null) dto.setDuration(extractJson(json, "timeRequired"));
+        }
+
+        if (dto.getTitle() == null) dto.setTitle(doc.title());
+        if (dto.getDescription() == null) dto.setDescription(metaContent(doc, "description"));
+        if (dto.getPrice() == null) dto.setPrice("Paid");
+        dto.setLevel(firstNonEmpty(dto.getLevel(), metaContent(doc, "skill_difficulty")));
 
         dto.setScraped(true);
         return clean(dto);
@@ -279,16 +310,28 @@ public class CourseScraperService {
         return list;
     }
 
+    private String firstNonEmpty(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
     /** Extract a JSON string value by key (simple regex, no full parse needed) */
     private String extractJson(String json, String key) {
-        Pattern p = Pattern.compile("\"" + key + "\"\\s*:\\s*\"([^\"]+)\"");
+        Pattern p = Pattern.compile("\"" + Pattern.quote(key) + "\"\\s*:\\s*(?:\"([^\"]+)\"|([0-9]+(?:\\.[0-9]+)?))");
         Matcher m = p.matcher(json);
-        return m.find() ? m.group(1).trim() : null;
+        if (!m.find()) return null;
+        String value = m.group(1) != null ? m.group(1) : m.group(2);
+        return value != null ? value.trim() : null;
     }
 
     /** Extract nested JSON: { "outerKey": { "innerKey": "value" } } */
     private String extractJsonObject(String json, String outerKey, String innerKey) {
-        Pattern p = Pattern.compile("\"" + outerKey + "\"\\s*:\\s*\\{[^}]*\"" + innerKey + "\"\\s*:\\s*\"([^\"]+)\"");
+        Pattern p = Pattern.compile("(?s)\"" + Pattern.quote(outerKey) + "\"\\s*:\\s*\\{[^}]*\"" + Pattern.quote(innerKey) + "\"\\s*:\\s*\"([^\"]+)\"");
         Matcher m = p.matcher(json);
         return m.find() ? m.group(1).trim() : null;
     }
