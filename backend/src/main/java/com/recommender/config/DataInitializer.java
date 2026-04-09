@@ -18,16 +18,17 @@ public class DataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        if (courseRepository.count() == 0) {
-            log.info("Database is empty. Populating initial courses...");
+        log.info("Checking for initial course data...");
 
-            List<Course> initialCourses = List.of(
+        List<Course> initialCourses = List.of(
 
                 // ── Web Development ──────────────────────────────────────────
-                new Course(null, "The Complete Web Development Bootcamp", "Udemy",
+                createCourse("The Complete Web Development Bootcamp", "Udemy",
                     "https://www.udemy.com/course/the-complete-web-development-bootcamp/",
                     "Web Dev", "Beginner", 4.7,
-                    "https://img-c.udemycdn.com/course/750x422/1565338_e54e_16.jpg"),
+                    "https://img-c.udemycdn.com/course/750x422/1565338_e54e_16.jpg",
+                    "Dr. Angela Yu", "Become a full-stack web developer with just one course. HTML, CSS, Javascript, Node, React, MongoDB and more!", 
+                    "$12.99", "65 hours"),
 
                 new Course(null, "Advanced React and Next.js", "Coursera",
                     "https://www.coursera.org/learn/react",
@@ -70,10 +71,12 @@ public class DataInitializer implements CommandLineRunner {
                     "https://i.ytimg.com/vi/YszONjKpgg4/maxresdefault.jpg"),
 
                 // ── Java ──────────────────────────────────────────────────────
-                new Course(null, "Java Programming Masterclass (Java 17)", "Udemy",
+                createCourse("Java Programming Masterclass (Java 17)", "Udemy",
                     "https://www.udemy.com/course/java-the-complete-java-developer-course/",
                     "Java", "Beginner", 4.7,
-                    "https://img-c.udemycdn.com/course/750x422/533682_c10c_4.jpg"),
+                    "https://img-c.udemycdn.com/course/750x422/533682_c10c_4.jpg",
+                    "Tim Buchalka", "Learn Java In This Course and Become a Computer Programmer. Includes Core Java and more.", 
+                    "$14.99", "80 hours"),
 
                 new Course(null, "Java Programming for Complete Beginners", "Udemy",
                     "https://www.udemy.com/course/java-programming-tutorial-for-beginners/",
@@ -111,10 +114,12 @@ public class DataInitializer implements CommandLineRunner {
                     "https://i.ytimg.com/vi/eIrMbAQSU34/maxresdefault.jpg"),
 
                 // ── AI / Machine Learning ──────────────────────────────────────
-                new Course(null, "Machine Learning A-Z: AI, Python & R", "Udemy",
+                createCourse("Machine Learning A-Z: AI, Python & R", "Udemy",
                     "https://www.udemy.com/course/machinelearning/",
                     "AI", "Beginner", 4.5,
-                    "https://img-c.udemycdn.com/course/750x422/950390_270f_3.jpg"),
+                    "https://img-c.udemycdn.com/course/750x422/950390_270f_3.jpg",
+                    "Kirill Eremenko", "Learn to create Machine Learning Algorithms in Python and R from two Data Science experts.", 
+                    "$11.99", "44 hours"),
 
                 new Course(null, "Deep Learning Specialization", "Coursera",
                     "https://www.coursera.org/specializations/deep-learning",
@@ -152,10 +157,12 @@ public class DataInitializer implements CommandLineRunner {
                     "https://img-c.udemycdn.com/course/750x422/1178170_c1f1_5.jpg"),
 
                 // ── Python ────────────────────────────────────────────────────
-                new Course(null, "100 Days of Code: The Complete Python Bootcamp", "Udemy",
+                createCourse("100 Days of Code: The Complete Python Bootcamp", "Udemy",
                     "https://www.udemy.com/course/100-days-of-code/",
                     "Python", "Beginner", 4.8,
-                    "https://img-c.udemycdn.com/course/750x422/2776760_f176_10.jpg"),
+                    "https://img-c.udemycdn.com/course/750x422/2776760_f176_10.jpg",
+                    "Dr. Angela Yu", "Master Python by building 100 projects in 100 days. Learn data science, automation, and more.", 
+                    "$13.99", "64 hours"),
 
                 new Course(null, "Python for Everybody Specialization", "Coursera",
                     "https://www.coursera.org/specializations/python",
@@ -331,12 +338,30 @@ public class DataInitializer implements CommandLineRunner {
                     "https://www.youtube.com/watch?v=69eDnXHmHZ0",
                     "DSA", "Intermediate", 4.6,
                     "https://i.ytimg.com/vi/69eDnXHmHZ0/maxresdefault.jpg")
-            );
+        );
 
-            courseRepository.saveAll(initialCourses);
-            log.info("Successfully populated {} initial courses into the database.", initialCourses.size());
+        // Upsert logic: Only save courses that don't already exist in the database by URL
+        List<Course> newCourses = initialCourses.stream()
+            .filter(course -> courseRepository.findByUrl(course.getUrl()).isEmpty())
+            .toList();
+
+        if (!newCourses.isEmpty()) {
+            courseRepository.saveAll(newCourses);
+            log.info("Successfully populated {} new courses into the database.", newCourses.size());
         } else {
-            log.info("Database already contains {} courses. No initialization needed.", courseRepository.count());
+            log.info("All {} initial courses already exist in the database. No new records added.", initialCourses.size());
         }
+    }
+
+    private Course createCourse(String title, String platform, String url, String category, 
+                               String level, Double rating, String thumbnail, 
+                               String instructor, String description, String price, String duration) {
+        Course course = new Course(null, title, platform, url, category, level, rating, thumbnail);
+        course.setInstructor(instructor);
+        course.setDescription(description);
+        course.setPrice(price);
+        course.setDuration(duration);
+        course.setStudents("Enrollment varies");
+        return course;
     }
 }
