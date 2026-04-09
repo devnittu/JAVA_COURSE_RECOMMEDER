@@ -1,6 +1,7 @@
 package com.recommender.service;
 
 import com.recommender.model.Course;
+import com.recommender.dto.CourseDTO;
 import com.recommender.repository.CourseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
