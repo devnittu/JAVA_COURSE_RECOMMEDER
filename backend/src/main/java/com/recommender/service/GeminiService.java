@@ -5,9 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
-
+import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @RequiredArgsConstructor
@@ -19,8 +23,17 @@ public class GeminiService {
 
     private final RestTemplate restTemplate;
 
-   private static final String GEMINI_URL =
-    "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=";
+    private static final String GEMINI_URL =
+        "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=";
+
+    // ─── Rate Limiting (Token Bucket: 10 requests per 60 seconds) ───
+    private static final int RATE_LIMIT_REQUESTS = 10;
+    private static final long RATE_LIMIT_WINDOW_MS = 60_000;  // 60 seconds
+    private static final long REQUEST_TIMEOUT_MS = 15_000;    // 15 seconds
+    private static final int MAX_PROMPT_LENGTH = 2000;
+    
+    private final AtomicInteger requestCount = new AtomicInteger(0);
+    private final AtomicLong windowStartTime = new AtomicLong(System.currentTimeMillis());
 
     public boolean isAvailable() {
         return apiKey != null && !apiKey.isBlank();
@@ -96,12 +109,15 @@ public class GeminiService {
     // ─────────────────────────────────────────────────────────────
     public String generateSummary(String title, String platform, Double rating) {
         if (!isAvailable()) return null;
+        
+        // Null safety: validate inputs
+        if (title == null || title.isBlank()) return null;
+        if (platform == null || platform.isBlank()) platform = "online";
 
-        String prompt = """
-            Write a single compelling sentence (max 15 words) describing why someone should take this course.
+        String prompt = """         Write a single compelling sentence (max 15 words) describing why someone should take this course.
             Course: "%s" on %s (rating: %s/5)
             Only respond with that one sentence, no quotes, no extra text.
-            """.formatted(title, platform, rating != null ? rating : "unknown");
+            """.formatted(title.trim(), platform.trim(), rating != null ? String.format("%.1f", rating) : "unknown");
 
         return callGemini(prompt);
     }
@@ -138,14 +154,31 @@ public class GeminiService {
     }
 
     // ─────────────────────────────────────────────────────────────
-    //  Core: Call Gemini REST API
+    //  Core: Call Gemini REST API with rate limiting & error handling
     // ─────────────────────────────────────────────────────────────
     @SuppressWarnings("unchecked")
     private String callGemini(String prompt) {
         try {
-            log.info("Gemini API key present: {}", apiKey != null && !apiKey.isBlank());
+            // ─── Rate Limiting (Token Bucket) ───
+            if (!checkRateLimit()) {
+                log.warn("Gemini rate limit exceeded: {} requests in {} ms", requestCount.get(), RATE_LIMIT_WINDOW_MS);
+                return null;
+            }
+
+            // ─── Prompt Validation ───
+            if (prompt == null || prompt.isBlank()) {
+                log.debug("Prompt is empty, skipping Gemini call");
+                return null;
+            }
+            if (prompt.length() > MAX_PROMPT_LENGTH) {
+                log.warn("Prompt exceeds max length ({}), truncating", MAX_PROMPT_LENGTH);
+                prompt = prompt.substring(0, MAX_PROMPT_LENGTH);
+            }
+
+            // ─── API Request ───
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Connection", "close");  // Avoid hanging connections
 
             Map<String, Object> part    = Map.of("text", prompt);
             Map<String, Object> content = Map.of("parts", List.of(part));
@@ -154,35 +187,102 @@ public class GeminiService {
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
             String url = GEMINI_URL + apiKey;
 
+            long startMs = System.currentTimeMillis();
             ResponseEntity<Map> response = restTemplate.postForEntity(url, request, Map.class);
-            if (response.getBody() == null) return null;
+            long durationMs = System.currentTimeMillis() - startMs;
+            
+            log.debug("Gemini API call took {}ms", durationMs);
 
-            List<Map<String, Object>> candidates =
-                (List<Map<String, Object>>) response.getBody().get("candidates");
-            if (candidates == null || candidates.isEmpty()) return null;
-
-            Map<String, Object> firstCandidate = candidates.get(0);
-            Map<String, Object> responseContent = (Map<String, Object>) firstCandidate.get("content");
-            List<Map<String, Object>> parts = (List<Map<String, Object>>) responseContent.get("parts");
-            if (parts == null || parts.isEmpty()) return null;
-
-            String text = (String) parts.get(0).get("text");
-
-            // Strip markdown code fences if present
-            if (text != null) {
-                text = text.strip()
-                    .replaceAll("^```json\\s*", "")
-                    .replaceAll("^```\\s*", "")
-                    .replaceAll("\\s*```$", "")
-                    .strip();
+            // ─── Response Parsing with Null Safety ───
+            if (response == null || response.getBody() == null) {
+                log.warn("Gemini returned null response");
+                return null;
             }
 
-            return text;
+            try {
+                Object candidatesObj = response.getBody().get("candidates");
+                if (!(candidatesObj instanceof List)) return null;
+                
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) candidatesObj;
+                if (candidates == null || candidates.isEmpty()) return null;
 
+                Map<String, Object> firstCandidate = candidates.get(0);
+                if (firstCandidate == null) return null;
+                
+                Object contentObj = firstCandidate.get("content");
+                if (!(contentObj instanceof Map)) return null;
+                
+                Map<String, Object> responseContent = (Map<String, Object>) contentObj;
+                Object partsObj = responseContent.get("parts");
+                if (!(partsObj instanceof List)) return null;
+                
+                List<Map<String, Object>> parts = (List<Map<String, Object>>) partsObj;
+                if (parts == null || parts.isEmpty()) return null;
+
+                Object textObj = parts.get(0).get("text");
+                if (!(textObj instanceof String)) return null;
+                
+                String text = (String) textObj;
+
+                // Strip markdown code fences if present
+                if (text != null) {
+                    text = text.strip()
+                        .replaceAll("^```json\\s*", "")
+                        .replaceAll("^```\\s*", "")
+                        .replaceAll("\\s*```$", "")
+                        .strip();
+                }
+
+                return text;
+                
+            } catch (ClassCastException e) {
+                log.error("Unexpected response structure from Gemini: {}", e.getMessage());
+                return null;
+            }
+
+        } catch (HttpClientErrorException.TooManyRequests e) {
+            // 429 — Rate limited by Gemini
+            log.warn("Gemini API rate limit hit (429): {}", e.getMessage());
+            return null;
+        } catch (HttpClientErrorException e) {
+            // 4xx errors (401, 403, 404, etc.)
+            log.warn("Gemini API client error ({}): {}", e.getStatusCode(), e.getMessage());
+            return null;
+        } catch (HttpServerErrorException e) {
+            // 5xx errors (server down, etc.)
+            log.warn("Gemini API server error ({}): {}", e.getStatusCode(), e.getMessage());
+            return null;
         } catch (Exception e) {
-            log.error("Gemini API call failed", e);
+            log.error("Gemini API call failed: {}", e.getClass().getSimpleName() + " - " + e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Token bucket rate limiter: 10 requests per 60 seconds
+     */
+    private boolean checkRateLimit() {
+        long now = System.currentTimeMillis();
+        long windowStart = windowStartTime.get();
+        long elapsedMs = now - windowStart;
+
+        if (elapsedMs > RATE_LIMIT_WINDOW_MS) {
+            // New window: reset counter
+            windowStartTime.set(now);
+            requestCount.set(1);
+            return true;
+        }
+
+        // Within window: check if we can add another request
+        int currentCount = requestCount.incrementAndGet();
+        if (currentCount <= RATE_LIMIT_REQUESTS) {
+            log.debug("Gemini request {}/{} in current window", currentCount, RATE_LIMIT_REQUESTS);
+            return true;
+        }
+
+        // Exceeded limit
+        requestCount.decrementAndGet();  // Revert the increment
+        return false;
     }
 
     // ─────────────────────────────────────────────────────────────

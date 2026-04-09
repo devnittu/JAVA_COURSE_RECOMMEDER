@@ -1,11 +1,16 @@
 package com.recommender.service;
 
 import com.recommender.dto.CourseDTO;
+import com.recommender.dto.PaginatedResponse;
 import com.recommender.model.Course;
 import com.recommender.repository.CourseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -24,12 +29,6 @@ public class RecommendationService {
 
     @Value("${youtube.api.key:}")
     private String youtubeApiKey;
-
-    @Value("${udemy.client.id:}")
-    private String udemyClientId;
-
-    @Value("${udemy.client.secret:}")
-    private String udemyClientSecret;
 
     // Categories shown on the homepage trending carousel (by priority)
     private static final List<String> TRENDING_CATEGORIES = List.of(
@@ -78,7 +77,6 @@ public class RecommendationService {
         if (scored.isEmpty() && category != null && !category.isBlank()) {
             log.debug("No DB results for category '{}', fetching from APIs", category);
             List<CourseDTO> fallback = new ArrayList<>();
-            fallback.addAll(searchUdemy(category));
             fallback.addAll(searchYouTube(category + " programming course"));
             return fallback;
         }
@@ -116,9 +114,8 @@ public class RecommendationService {
 
         results.addAll(dbResults);
 
-        // ── 2. Fetch live from Udemy and YouTube ──
+        // ── 2. Fetch live from YouTube ──
         List<CourseDTO> apiResults = new ArrayList<>();
-        apiResults.addAll(searchUdemy(query));
         apiResults.addAll(searchYouTube(query + " course tutorial"));
         
         // Merge: skip API results whose title closely matches a DB result
@@ -181,9 +178,8 @@ public class RecommendationService {
 
         // If DB is nearly empty, supplement with API trending
         if (trending.size() < 6) {
-            log.debug("Few DB trending courses, supplementing with APIs");
+            log.debug("Few DB trending courses, supplementing with YouTube API");
             List<CourseDTO> xtraTrending = new ArrayList<>();
-            xtraTrending.addAll(searchUdemy("programming course 2024"));
             xtraTrending.addAll(searchYouTube("programming course 2024"));
             
             xtraTrending.stream()
@@ -206,69 +202,6 @@ public class RecommendationService {
                 .collect(Collectors.toList());
     }
 
-    // ─────────────────────────────────────────────────────────────
-    //  Udemy Affiliate API — dynamic affiliate links
-    // ─────────────────────────────────────────────────────────────
-    @SuppressWarnings("unchecked")
-    public List<CourseDTO> searchUdemy(String query) {
-        if (udemyClientId == null || udemyClientId.isBlank() || udemyClientSecret == null || udemyClientSecret.isBlank()) {
-            log.debug("Udemy Affiliate API credentials not configured, skipping");
-            return Collections.emptyList();
-        }
-
-        try {
-            String encoded = URLEncoder.encode(query, StandardCharsets.UTF_8);
-            String url = "https://www.udemy.com/api-2.0/courses/?search=" + encoded + "&page_size=6";
-
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-            String auth = udemyClientId + ":" + udemyClientSecret;
-            String encodedAuth = Base64.getEncoder().encodeToString(auth.getBytes(StandardCharsets.UTF_8));
-            headers.set("Authorization", "Basic " + encodedAuth);
-            org.springframework.http.HttpEntity<String> entity = new org.springframework.http.HttpEntity<>(headers);
-
-            org.springframework.http.ResponseEntity<Map> responseEntity = restTemplate.exchange(url, org.springframework.http.HttpMethod.GET, entity, Map.class);
-            Map<String, Object> response = responseEntity.getBody();
-
-            if (response == null || !response.containsKey("results")) return Collections.emptyList();
-
-            List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("results");
-            List<CourseDTO> udemyCourses = new ArrayList<>();
-
-            for (Map<String, Object> item : items) {
-                try {
-                    Number idNumber = (Number) item.get("id");
-                    String title = (String) item.get("title");
-                    String courseUrl = (String) item.get("url");
-                    String thumbUrl = (String) item.get("image_480x270");
-
-                    if (idNumber == null || title == null) continue;
-
-                    String category = detectCategory(query);
-
-                    CourseDTO dto = new CourseDTO();
-                    dto.setId(Math.abs(idNumber.longValue()));
-                    dto.setTitle(cleanTitle(title));
-                    dto.setPlatform("Udemy");
-                    dto.setUrl("https://www.udemy.com" + courseUrl);
-                    dto.setCategory(category);
-                    dto.setLevel("All Levels");
-                    dto.setRating(null);
-                    dto.setScore(9); // High score for Udemy affiliate links
-                    dto.setThumbnail(thumbUrl);
-
-                    udemyCourses.add(dto);
-                } catch (Exception e) {
-                    log.warn("Error parsing Udemy item: {}", e.getMessage());
-                }
-            }
-
-            log.debug("Udemy returned {} results for '{}'", udemyCourses.size(), query);
-            return udemyCourses;
-        } catch (Exception e) {
-            log.error("Udemy API call failed: {}", e.getMessage());
-            return Collections.emptyList();
-        }
-    }
 
     // ─────────────────────────────────────────────────────────────
     //  YouTube Data API v3 — live course fetching
@@ -420,5 +353,149 @@ public class RecommendationService {
         Set<String> union = new HashSet<>(wordsA);
         union.addAll(wordsB);
         return (double) intersection.size() / union.size();
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PHASE 2: Pagination Methods (NEW)
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/recommend?category=Java&level=Beginner&limit=20&offset=0
+     * Paginated recommendations with category + level filtering
+     */
+    public PaginatedResponse<CourseDTO> getRecommendationsPage(
+            String category, String level, int limit, int offset, String sortBy) {
+        log.debug("Getting paginated recommendations: category={}, level={}, limit={}, offset={}, sort={}",
+                category, level, limit, offset, sortBy);
+
+        Pageable pageable = createPageable(offset, limit, sortBy != null ? sortBy : "rating");
+        Page<Course> page;
+
+        if (category != null && !category.isBlank() && level != null && !level.isBlank()) {
+            page = courseRepository.findByCategoryAndLevel(category, level, pageable);
+        } else if (category != null && !category.isBlank()) {
+            page = courseRepository.findByCategory(category, pageable);
+        } else if (level != null && !level.isBlank()) {
+            page = courseRepository.findByLevel(level, pageable);
+        } else {
+            page = courseRepository.findTopRated(pageable);
+        }
+
+        List<CourseDTO> dtos = page.getContent().stream()
+                .map(c -> toDTO(c, 0))
+                .collect(Collectors.toList());
+
+        return new PaginatedResponse<>(dtos, (int) page.getTotalElements(), offset, limit);
+    }
+
+    /**
+     * GET /api/courses?limit=20&offset=0&sortBy=rating
+     * Paginated all courses with sorting
+     */
+    public PaginatedResponse<CourseDTO> getAllCoursesPage(int limit, int offset, String sortBy) {
+        log.debug("Getting all courses paginated: limit={}, offset={}, sort={}", limit, offset, sortBy);
+
+        Pageable pageable = createPageable(offset, limit, sortBy != null ? sortBy : "rating");
+        Page<Course> page;
+
+        if ("newest".equals(sortBy)) {
+            page = courseRepository.findNewest(pageable);
+        } else {
+            page = courseRepository.findTopRated(pageable);
+        }
+
+        List<CourseDTO> dtos = page.getContent().stream()
+                .map(c -> toDTO(c, 0))
+                .collect(Collectors.toList());
+
+        return new PaginatedResponse<>(dtos, (int) page.getTotalElements(), offset, limit);
+    }
+
+    /**
+     * GET /api/courses/search?q=java&limit=20&offset=0&sortBy=relevance
+     * Paginated search with sorting
+     */
+    public PaginatedResponse<CourseDTO> searchCoursesPage(String query, int limit, int offset, String sortBy) {
+        log.debug("Searching paginated: q={}, limit={}, offset={}, sort={}", query, limit, offset, sortBy);
+
+        if (query == null || query.isBlank()) {
+            return getTrendingCoursesPage(limit, offset);
+        }
+
+        Pageable pageable = createPageable(offset, limit, sortBy != null ? sortBy : "relevance");
+        Page<Course> page = courseRepository.findByTitleContainingIgnoreCase(query, pageable);
+
+        List<CourseDTO> dtos = page.getContent().stream()
+                .map(c -> {
+                    int score = computeSearchScore(c, query.split("\\s+"));
+                    return toDTO(c, score);
+                })
+                .collect(Collectors.toList());
+
+        return new PaginatedResponse<>(dtos, (int) page.getTotalElements(), offset, limit);
+    }
+
+    /**
+     * GET /api/courses/trending?limit=20&offset=0
+     * Paginated trending courses
+     */
+    public PaginatedResponse<CourseDTO> getTrendingCoursesPage(int limit, int offset) {
+        log.debug("Getting trending paginated: limit={}, offset={}", limit, offset);
+
+        Pageable pageable = PageRequest.of(offset / limit, limit, Sort.by(Sort.Direction.DESC, "rating"));
+        Page<Course> page = courseRepository.findTopRated(pageable);
+
+        List<CourseDTO> dtos = page.getContent().stream()
+                .map(c -> toDTO(c, computeTrendingScore(c)))
+                .collect(Collectors.toList());
+
+        return new PaginatedResponse<>(dtos, (int) page.getTotalElements(), offset, limit);
+    }
+
+    /**
+     * GET /api/courses/advanced?category=&platform=&level=&minRating=4.0&sortBy=rating&limit=20&offset=0
+     * Advanced search with multiple filters
+     */
+    public PaginatedResponse<CourseDTO> advancedSearch(
+            String category, String platform, String level, Double minRating,
+            int limit, int offset, String sortBy) {
+        log.debug("Advanced search: category={}, platform={}, level={}, minRating={}, sort={}",
+                category, platform, level, minRating, sortBy);
+
+        Pageable pageable = createPageable(offset, limit, sortBy != null ? sortBy : "rating");
+        Page<Course> page = courseRepository.findWithFilters(category, platform, level, minRating, pageable);
+
+        List<CourseDTO> dtos = page.getContent().stream()
+                .map(c -> toDTO(c, 0))
+                .collect(Collectors.toList());
+
+        return new PaginatedResponse<>(dtos, (int) page.getTotalElements(), offset, limit);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  Helper: Create Pageable with sorting
+    // ─────────────────────────────────────────────────────────────
+    private Pageable createPageable(int offset, int limit, String sortBy) {
+        Sort sort;
+
+        switch (sortBy.toLowerCase()) {
+            case "newest":
+                sort = Sort.by(Sort.Direction.DESC, "createdAt");
+                break;
+            case "rating":
+            case "relevance":
+                sort = Sort.by(Sort.Direction.DESC, "rating");
+                break;
+            case "title":
+                sort = Sort.by(Sort.Direction.ASC, "title");
+                break;
+            case "trending":
+                sort = Sort.by(Sort.Direction.DESC, "rating", "createdAt");
+                break;
+            default:
+                sort = Sort.by(Sort.Direction.DESC, "rating");
+        }
+
+        return PageRequest.of(offset / limit, limit, sort);
     }
 }

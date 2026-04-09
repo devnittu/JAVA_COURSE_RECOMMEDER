@@ -66,6 +66,10 @@ const CourseCard = ({ course, index, isSaved, onToggleSave }) => {
 
         <h3 className="card-title">{course.title}</h3>
 
+        {course.instructor && (
+          <p className="card-instructor">👨‍🏫 {course.instructor}</p>
+        )}
+
         <div className="card-footer">
           {course.category && <span className="card-category">{course.category}</span>}
           {course.level    && <span className="card-level">{course.level}</span>}

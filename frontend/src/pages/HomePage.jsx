@@ -46,6 +46,9 @@ const HomePage = () => {
   const [error, setError]           = useState('');
   const [searched, setSearched]     = useState(false);
   const [savedIds, setSavedIds]     = useState([]);
+  const [offset, setOffset]         = useState(0);
+  const [hasMore, setHasMore]       = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const debounceRef = useRef(null);
 
@@ -157,6 +160,38 @@ const HomePage = () => {
       }
     } catch (err) {
       console.error('Save error:', err);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    try {
+      let data;
+      const newOffset = offset + 20;
+
+      if (searched && query.trim()) {
+        data = await searchCourses(query.trim(), 20, newOffset);
+      } else if (activeCategory) {
+        data = await getRecommendations(activeCategory, '', 20, newOffset);
+      } else {
+        data = await getTrendingCourses(20, newOffset);
+      }
+
+      // Handle both array and paginated response
+      const newCourses = Array.isArray(data) ? data : data.content || [];
+      setCourses(prev => [...prev, ...newCourses]);
+      setOffset(newOffset);
+      
+      // Check if there are more courses
+      if (Array.isArray(data)) {
+        setHasMore(newCourses.length === 20); // Simple heuristic
+      } else {
+        setHasMore(data.hasMore || false);
+      }
+    } catch (err) {
+      console.error('Load more error:', err);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -306,6 +341,20 @@ const HomePage = () => {
                     />
                   ))}
                 </div>
+
+                {/* Load More Button */}
+                {hasMore && displayCourses.length > 0 && (
+                  <div className="load-more-container">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="btn-load-more"
+                      id="load-more-btn"
+                    >
+                      {loadingMore ? '⏳ Loading...' : '📖 Load More Courses'}
+                    </button>
+                  </div>
+                )}
               </>
             )}
 

@@ -39,6 +39,23 @@ Thumbs.db
 # Temp / logs
 backend/*.txt
 backend/errors*.txt
+compile_errors.txt
 
 # Local-only Spring Boot properties (contains API keys — never commit!)
 backend/src/main/resources/application-local.properties
+
+# Helper scripts (local only)
+quickstart.sh
+start.sh
+seed.sh
+deploy.sh
+build_and_run.sh
+local_setup.sh
+
+# Documentation (optional - can commit if needed)
+DEPLOYMENT_TROUBLESHOOTING.md
+DEPLOYMENT_CHECKLIST.md
+PHASE_1_PLANNING.md
+PHASE_2_IMPLEMENTATION.md
+PHASE_2_COMPLETE.md
+PROJECT_DOCUMENTATION.txt

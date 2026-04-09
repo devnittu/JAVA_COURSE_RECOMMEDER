@@ -3,10 +3,11 @@ package com.recommender.controller;
 import com.auth0.jwt.exceptions.JWTVerificationException;
 import com.recommender.config.JwtUtil;
 import com.recommender.dto.CourseDTO;
-
+import com.recommender.dto.PaginatedResponse;
 import com.recommender.model.SavedCourse;
 import com.recommender.repository.CourseRepository;
 import com.recommender.repository.SavedCourseRepository;
+import com.recommender.service.DashboardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,7 @@ public class DashboardController {
 
     private final SavedCourseRepository savedCourseRepository;
     private final CourseRepository courseRepository;
+    private final DashboardService dashboardService;
     private final JwtUtil jwtUtil;
 
     private Long extractUserId(String authHeader) {
@@ -113,6 +115,80 @@ public class DashboardController {
             List<Long> ids = savedCourseRepository.findByUserId(userId)
                     .stream().map(SavedCourse::getCourseId).collect(Collectors.toList());
             return ResponseEntity.ok(ids);
+        } catch (JWTVerificationException e) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    //  PHASE 2: New Dashboard Endpoints
+    // ─────────────────────────────────────────────────────────────
+
+    /**
+     * GET /api/dashboard/saved/filtered?category=&platform=&sortBy=&limit=20&offset=0
+     * Get saved courses with filtering and pagination
+     */
+    @GetMapping("/saved/filtered")
+    public ResponseEntity<?> getFilteredSavedCourses(
+            @RequestHeader(value = "Authorization", required = false) String authHeader,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String platform,
+            @RequestParam(required = false, defaultValue = "newest") String sortBy,
+            @RequestParam(required = false, defaultValue = "20") int limit,
+            @RequestParam(required = false, defaultValue = "0") int offset) {
+        try {
+            Long userId = extractUserId(authHeader);
+            PaginatedResponse<CourseDTO> response = dashboardService.getFilteredSavedCourses(
+                    userId, category, platform, sortBy, limit, offset);
+            return ResponseEntity.ok(response);
+        } catch (JWTVerificationException e) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
+    }
+
+    /**
+     * GET /api/dashboard/recommendations
+     * Get AI-powered course recommendations based on user's saved courses
+     */
+    @GetMapping("/recommendations")
+    public ResponseEntity<?> getRecommendations(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            Long userId = extractUserId(authHeader);
+            List<CourseDTO> recommendations = dashboardService.getRecommendationsForUser(userId);
+            return ResponseEntity.ok(recommendations);
+        } catch (JWTVerificationException e) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
+    }
+
+    /**
+     * GET /api/dashboard/stats
+     * Get user's dashboard statistics (total saved, categories, platforms, avg rating)
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<?> getStats(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            Long userId = extractUserId(authHeader);
+            Map<String, Object> stats = dashboardService.getUserStats(userId);
+            return ResponseEntity.ok(stats);
+        } catch (JWTVerificationException e) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
+    }
+
+    /**
+     * POST /api/dashboard/clear-all
+     * Clear all saved courses for the user
+     */
+    @PostMapping("/clear-all")
+    public ResponseEntity<?> clearAllSaved(
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+        try {
+            Long userId = extractUserId(authHeader);
+            Map<String, Object> result = dashboardService.clearAllSavedCourses(userId);
+            return ResponseEntity.ok(result);
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
         }

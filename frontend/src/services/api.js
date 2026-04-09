@@ -24,7 +24,6 @@ api.interceptors.request.use((config) => {
  * The backend validates it with Google and upserts the user.
  */
 export const googleAuth = async (accessToken) => {
-  // We send the access_token; backend calls Google userinfo endpoint
   const response = await api.post('/auth/google', { idToken: accessToken });
   return response.data;
 };
@@ -38,28 +37,59 @@ export const getMe = async () => {
 //  Courses / Recommendations
 // ════════════════════════════
 
-export const getRecommendations = async (category, level) => {
-  const params = {};
+export const getRecommendations = async (category, level, limit = 20, offset = 0) => {
+  const params = { limit, offset };
   if (category) params.category = category;
   if (level)    params.level    = level;
   const response = await api.get('/recommend', { params });
   return response.data;
 };
 
-export const getAllCourses = async () => {
-  const response = await api.get('/courses');
+export const getAllCourses = async (limit = 20, offset = 0, sortBy = 'rating') => {
+  const response = await api.get('/courses', { params: { limit, offset, sortBy } });
   return response.data;
 };
 
-// Search courses by keyword (hits /api/courses/search?q=...)
-export const searchCourses = async (query) => {
-  const response = await api.get('/courses/search', { params: { q: query } });
+// Paginated search courses by keyword
+export const searchCourses = async (query, limit = 20, offset = 0, sortBy = 'relevance') => {
+  const response = await api.get('/courses/search', { 
+    params: { q: query, limit, offset, sortBy } 
+  });
   return response.data;
 };
 
-// Trending / featured courses for homepage auto-load
-export const getTrendingCourses = async () => {
-  const response = await api.get('/courses/trending');
+// ── PHASE 2: Paginated versions ──
+export const getPaginatedCourses = async (limit = 20, offset = 0, sortBy = 'rating') => {
+  const response = await api.get('/courses', { params: { limit, offset, sortBy } });
+  return response.data;
+};
+
+export const getTrendingCourses = async (limit = 20, offset = 0) => {
+  const response = await api.get('/courses/trending', { params: { limit, offset } });
+  return response.data;
+};
+
+// Advanced search with multiple filters
+export const advancedSearch = async (filters) => {
+  const {
+    query = '',
+    category = null,
+    platform = null,
+    level = null,
+    minRating = null,
+    sortBy = 'relevance',
+    limit = 20,
+    offset = 0
+  } = filters;
+
+  const params = { limit, offset, sortBy };
+  if (query) params.q = query;
+  if (category) params.category = category;
+  if (platform) params.platform = platform;
+  if (level) params.level = level;
+  if (minRating) params.minRating = minRating;
+
+  const response = await api.get('/courses/advanced', { params });
   return response.data;
 };
 
@@ -84,6 +114,30 @@ export const saveCourse = async (courseId) => {
 
 export const unsaveCourse = async (courseId) => {
   const response = await api.delete(`/dashboard/unsave/${courseId}`);
+  return response.data;
+};
+
+// ── PHASE 2: Dashboard with filtering ──
+export const getFilteredSavedCourses = async (category = null, platform = null, sortBy = 'newest', limit = 20, offset = 0) => {
+  const params = { sortBy, limit, offset };
+  if (category) params.category = category;
+  if (platform) params.platform = platform;
+  const response = await api.get('/dashboard/saved/filtered', { params });
+  return response.data;
+};
+
+export const getDashboardRecommendations = async () => {
+  const response = await api.get('/dashboard/recommendations');
+  return response.data;
+};
+
+export const getDashboardStats = async () => {
+  const response = await api.get('/dashboard/stats');
+  return response.data;
+};
+
+export const clearAllSavedCourses = async () => {
+  const response = await api.post('/dashboard/clear-all');
   return response.data;
 };
 
@@ -113,6 +167,17 @@ export const aiStatus = async () => {
 export const getCourseDetail = async (courseUrl) => {
   const response = await api.get('/courses/detail', {
     params: { url: courseUrl }
+  });
+  return response.data;
+};
+
+// ════════════════════════════
+//  Admin (Seeding)
+// ════════════════════════════
+
+export const seedDatabase = async (coursesPerPlatform = 200) => {
+  const response = await api.post('/admin/seed', {}, {
+    params: { coursesPerPlatform }
   });
   return response.data;
 };

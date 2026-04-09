@@ -4,9 +4,15 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "courses")
+@Table(name = "courses", indexes = {
+    @Index(name = "idx_category", columnList = "category"),
+    @Index(name = "idx_platform", columnList = "platform"),
+    @Index(name = "idx_rating", columnList = "rating DESC"),
+    @Index(name = "idx_created_at", columnList = "created_at DESC")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -36,4 +42,26 @@ public class Course {
 
     @Column(length = 600)
     private String thumbnail;
+
+    // ─── New Fields (Phase 2) ───
+    @Column(length = 255)
+    private String instructor;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    @Column(length = 50)
+    private String duration;
+
+    @Column(length = 50)
+    private String students;
+
+    @Column(length = 50)
+    private String price;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt = LocalDateTime.now();
 }

@@ -37,12 +37,26 @@ const DashboardPage = () => {
   useEffect(() => { fetchSaved(); }, [fetchSaved]);
 
   const handleRemove = async (courseId) => {
+    // ── Layer 1: Optimistic Update (instant UI feedback) ──
+    const removedCourse = savedCourses.find(c => c.id === courseId);
+    setSavedCourses(prev => prev.filter(c => c.id !== courseId));
     setRemoving(courseId);
+
+    // ── Layer 2: Send request to backend ──
     try {
       await unsaveCourse(courseId);
-      setSavedCourses(prev => prev.filter(c => c.id !== courseId));
-    } catch (e) { console.error(e); }
-    finally { setRemoving(null); }
+      // Success: UI already updated optimistically, nothing to do
+    } catch (error) {
+      // ── Layer 3: Rollback on failure ──
+      if (removedCourse) {
+        setSavedCourses(prev => [...prev, removedCourse]);
+      }
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to remove course';
+      console.error('Remove error:', errorMsg);
+      alert(`❌ Could not remove: ${errorMsg}`);
+    } finally {
+      setRemoving(null);
+    }
   };
 
   const handleImgError = (id) => setImgErrors(prev => ({ ...prev, [id]: true }));
