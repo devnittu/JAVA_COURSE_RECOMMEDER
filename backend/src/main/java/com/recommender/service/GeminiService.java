@@ -114,7 +114,8 @@ public class GeminiService {
         if (title == null || title.isBlank()) return null;
         if (platform == null || platform.isBlank()) platform = "online";
 
-        String prompt = """         Write a single compelling sentence (max 15 words) describing why someone should take this course.
+        String prompt = """
+            Write a single compelling sentence (max 15 words) describing why someone should take this course.
             Course: "%s" on %s (rating: %s/5)
             Only respond with that one sentence, no quotes, no extra text.
             """.formatted(title.trim(), platform.trim(), rating != null ? String.format("%.1f", rating) : "unknown");
