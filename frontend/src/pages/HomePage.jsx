@@ -69,7 +69,9 @@ const HomePage = () => {
     setTrendingLoading(true);
     try {
       const data = await getTrendingCourses();
-      setTrending(data);
+      // Handle both array and paginated response
+      const courses = Array.isArray(data) ? data : data.content || [];
+      setTrending(courses);
     } catch (_) {
       // fallback silently — trending is optional
     } finally {
@@ -106,9 +108,11 @@ const HomePage = () => {
       } else {
         data = await getRecommendations(cat, '');
       }
-      setCourses(data);
+      // Handle both array and paginated response
+      const courseList = Array.isArray(data) ? data : data.content || [];
+      setCourses(courseList);
       setSearched(true);
-      if (data.length === 0) setError('No courses found. Try a different keyword!');
+      if (courseList.length === 0) setError('No courses found. Try a different keyword!');
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch courses. Make sure the backend is running.');
     } finally {
