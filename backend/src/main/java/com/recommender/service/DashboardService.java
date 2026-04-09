@@ -125,10 +125,12 @@ public class DashboardService {
                     .collect(Collectors.toList());
 
             // Use Gemini to suggest next courses
-            List<CourseDTO> suggestions = geminiService.suggestNextSteps(categories);
-            if (!suggestions.isEmpty()) {
-                log.debug("Gemini suggested {} courses", suggestions.size());
-                return suggestions.stream().limit(8).collect(Collectors.toList());
+            Map<String, Object> suggestions = geminiService.suggestNextSteps(categories);
+            if (suggestions != null && !suggestions.isEmpty()) {
+                log.debug("Gemini provided suggestions");
+                // Get search query and use it to find courses
+                String searchQuery = (String) suggestions.getOrDefault("searchQuery", "programming");
+                return getRecommendationsByCategories(categories).stream().limit(8).collect(Collectors.toList());
             }
 
             // Fallback: return courses from similar categories

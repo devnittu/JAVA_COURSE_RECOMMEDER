@@ -3,7 +3,6 @@ package com.recommender.model;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
@@ -15,7 +14,6 @@ import java.time.LocalDateTime;
 })
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 public class Course {
 
     @Id
@@ -64,4 +62,25 @@ public class Course {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    // ─────────────────────────────────────────────────────────────
+    //  Custom Constructor for DataInitializer (backward compatible)
+    //  Signature: (id, title, platform, url, category, level, rating, thumbnail)
+    // ─────────────────────────────────────────────────────────────
+    public Course(Long id, String title, String platform, String url, String category, 
+                  String level, Double rating, String thumbnail) {
+        this.id = id;
+        this.title = title;
+        this.platform = platform;
+        this.url = url;
+        this.category = category;
+        this.level = level;
+        this.rating = rating;
+        this.thumbnail = thumbnail;
+        // Default values for new fields
+        this.instructor = platform != null ? platform + " Team" : "Unknown";
+        this.price = "Free";
+        this.duration = "Variable";
+        this.students = "N/A";
+    }
 }

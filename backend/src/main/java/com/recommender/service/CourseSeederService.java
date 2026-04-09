@@ -113,18 +113,18 @@ public class CourseSeederService {
         for (String keyword : keywords) {
             try {
                 List<CourseDTO> results = recommendationService.searchYouTube(keyword);
-                for (CourseDTO dto : results) {
+                for (CourseDTO result : results) {
                     if (courses.size() >= maxCourses) break;
                     
                     Course course = new Course();
-                    course.setTitle(dto.getTitle());
+                    course.setTitle(result.getTitle());
                     course.setPlatform("YouTube");
-                    course.setUrl(dto.getUrl());
+                    course.setUrl(result.getUrl());
                     course.setCategory(detectCategory(keyword));
                     course.setLevel("Beginner");
                     course.setRating(4.0);  // YouTube API doesn't return ratings
-                    course.setThumbnail(dto.getThumbnail());
-                    course.setInstructor(dto.getPlatform() == null ? "YouTube" : dto.getPlatform());
+                    course.setThumbnail(result.getThumbnail());
+                    course.setInstructor(result.getPlatform() == null ? "YouTube" : result.getPlatform());
                     course.setPrice("Free");
                     course.setDuration("Variable");
                     
