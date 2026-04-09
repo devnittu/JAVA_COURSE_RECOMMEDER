@@ -20,7 +20,7 @@ public class GeminiService {
     private final RestTemplate restTemplate;
 
    private static final String GEMINI_URL =
-    "https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=";
+    "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=";
 
     public boolean isAvailable() {
         return apiKey != null && !apiKey.isBlank();
