@@ -61,10 +61,16 @@ const DashboardPage = () => {
 
   const handleImgError = (id) => setImgErrors(prev => ({ ...prev, [id]: true }));
 
-  const categories = [...new Set(savedCourses.map(c => c.category).filter(Boolean))];
-  const platforms  = [...new Set(savedCourses.map(c => c.platform).filter(Boolean))];
+  const categories = [...new Set(savedCourses.map(c => c?.category).filter(Boolean))];
+  const platforms  = [...new Set(savedCourses.map(c => c?.platform).filter(Boolean))];
   const avgRating  = savedCourses.length
-    ? (savedCourses.reduce((s, c) => s + (c.rating || 0), 0) / savedCourses.filter(c => c.rating).length || 0).toFixed(1)
+    ? (() => {
+      const ratedCourses = savedCourses.filter(c => c.rating && !isNaN(c.rating));
+      const avg = ratedCourses.length > 0 
+        ? ratedCourses.reduce((s, c) => s + parseFloat(c.rating), 0) / ratedCourses.length
+        : 0;
+      return avg > 0 ? parseFloat(avg.toFixed(1)) : '—';
+    })()
     : '—';
 
   const joinDate = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
@@ -184,7 +190,7 @@ const DashboardPage = () => {
                       <span className="dash-platform-dot" data-p={course.platform}>{icon}</span>
                       <span className="dash-platform-name">{course.platform}</span>
                       {course.rating && (
-                        <span className="dash-course-rating">⭐ {course.rating}</span>
+                        <span className="dash-course-rating">⭐ {parseFloat(course.rating).toFixed(1)}</span>
                       )}
                     </div>
 

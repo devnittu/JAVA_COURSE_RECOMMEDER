@@ -98,13 +98,23 @@ export const advancedSearch = async (filters) => {
 // ════════════════════════════
 
 export const getSavedCourses = async () => {
-  const response = await api.get('/dashboard/saved');
-  return response.data;
+  try {
+    const response = await api.get('/dashboard/saved');
+    return response.data || [];
+  } catch (error) {
+    console.error('Error fetching saved courses:', error);
+    return [];
+  }
 };
 
 export const getSavedCourseIds = async () => {
-  const response = await api.get('/dashboard/saved-ids');
-  return response.data;
+  try {
+    const response = await api.get('/dashboard/saved-ids');
+    return Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    console.error('Error fetching saved course IDs:', error);
+    return [];
+  }
 };
 
 export const saveCourse = async (courseId) => {

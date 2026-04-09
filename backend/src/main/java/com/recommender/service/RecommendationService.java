@@ -278,18 +278,23 @@ public class RecommendationService {
 
     private int computeSearchScore(Course course, String[] terms) {
         int score = 0;
-        String title    = course.getTitle()    != null ? course.getTitle().toLowerCase()    : "";
-        String category = course.getCategory() != null ? course.getCategory().toLowerCase() : "";
-        String platform = course.getPlatform() != null ? course.getPlatform().toLowerCase() : "";
-        String level    = course.getLevel()    != null ? course.getLevel().toLowerCase()    : "";
+        String title       = course.getTitle()       != null ? course.getTitle().toLowerCase()       : "";
+        String category    = course.getCategory()    != null ? course.getCategory().toLowerCase()    : "";
+        String platform    = course.getPlatform()    != null ? course.getPlatform().toLowerCase()    : "";
+        String level       = course.getLevel()       != null ? course.getLevel().toLowerCase()       : "";
+        String instructor  = course.getInstructor()  != null ? course.getInstructor().toLowerCase()  : "";
+        String description = course.getDescription() != null ? course.getDescription().toLowerCase() : "";
 
         for (String term : terms) {
-            if (title.contains(term))    score += 8;
-            if (category.contains(term)) score += 6;
-            if (platform.contains(term)) score += 2;
-            if (level.contains(term))    score += 2;
+            if (title.contains(term))       score += 10;  // Exact title match highest
+            if (category.contains(term))    score += 8;   // Category match
+            if (instructor.contains(term))  score += 7;   // Instructor match
+            if (description.contains(term)) score += 5;   // Description match
+            if (platform.contains(term))    score += 3;   // Platform match
+            if (level.contains(term))       score += 2;   // Level match
         }
 
+        // Boost score based on rating
         if (course.getRating() != null) {
             if (course.getRating() >= 4.8) score += 5;
             else if (course.getRating() >= 4.5) score += 3;
@@ -427,17 +432,29 @@ public class RecommendationService {
             return getTrendingCoursesPage(limit, offset);
         }
 
-        Pageable pageable = createPageable(offset, limit, sortBy != null ? sortBy : "relevance");
-        Page<Course> page = courseRepository.findByTitleContainingIgnoreCase(query, pageable);
-
-        List<CourseDTO> dtos = page.getContent().stream()
-                .map(c -> {
-                    int score = computeSearchScore(c, query.split("\\s+"));
-                    return toDTO(c, score);
+        // Search across multiple fields for better results
+        String q = query.trim().toLowerCase();
+        String[] terms = q.split("\\s+");
+        
+        List<Course> allCourses = courseRepository.findAll();
+        List<CourseDTO> results = allCourses.stream()
+                .map(course -> {
+                    int score = computeSearchScore(course, terms);
+                    return toDTO(course, score);
                 })
+                .filter(dto -> dto.getScore() > 0)
+                .sorted(Comparator.comparingInt(CourseDTO::getScore).reversed())
                 .collect(Collectors.toList());
 
-        return new PaginatedResponse<>(dtos, (int) page.getTotalElements(), offset, limit);
+        // Apply pagination
+        int start = Math.max(0, offset);
+        int end = Math.min(start + limit, results.size());
+        
+        List<CourseDTO> pageContent = start < results.size() 
+            ? results.subList(start, end)
+            : new ArrayList<>();
+
+        return new PaginatedResponse<>(pageContent, results.size(), offset, limit);
     }
 
     /**
@@ -447,7 +464,9 @@ public class RecommendationService {
     public PaginatedResponse<CourseDTO> getTrendingCoursesPage(int limit, int offset) {
         log.debug("Getting trending paginated: limit={}, offset={}", limit, offset);
 
-        Pageable pageable = PageRequest.of(offset / limit, limit, Sort.by(Sort.Direction.DESC, "rating"));
+        // Use offset directly, not as page number
+        int pageNum = offset / limit;
+        Pageable pageable = PageRequest.of(pageNum, limit, Sort.by(Sort.Direction.DESC, "rating"));
         Page<Course> page = courseRepository.findTopRated(pageable);
 
         List<CourseDTO> dtos = page.getContent().stream()
@@ -482,8 +501,9 @@ public class RecommendationService {
     // ─────────────────────────────────────────────────────────────
     private Pageable createPageable(int offset, int limit, String sortBy) {
         Sort sort;
+        String sortKey = sortBy != null ? sortBy.toLowerCase().trim() : "rating";
 
-        switch (sortBy.toLowerCase()) {
+        switch (sortKey) {
             case "newest":
                 sort = Sort.by(Sort.Direction.DESC, "createdAt");
                 break;

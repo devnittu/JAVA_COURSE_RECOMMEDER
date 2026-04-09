@@ -12,10 +12,10 @@ const CourseCard = ({ course, index, isSaved, onToggleSave }) => {
   const [imgError, setImgError]     = useState(false);
   const [showModal, setShowModal]   = useState(false);
 
-  const icon         = PLATFORM_ICONS[course.platform] || '📖';
-  const isRecommended = course.score >= 15;
-  const isFree       = FREE_PLATFORMS.includes(course.platform);
-  const hasThumbnail = course.thumbnail && !imgError;
+  const icon         = PLATFORM_ICONS[course?.platform] || '📖';
+  const isRecommended = course?.score >= 15;
+  const isFree       = FREE_PLATFORMS.includes(course?.platform);
+  const hasThumbnail = course?.thumbnail && !imgError;
 
   const handleSaveClick = (e) => {
     e.preventDefault(); e.stopPropagation();
@@ -73,7 +73,7 @@ const CourseCard = ({ course, index, isSaved, onToggleSave }) => {
         <div className="card-footer">
           {course.category && <span className="card-category">{course.category}</span>}
           {course.level    && <span className="card-level">{course.level}</span>}
-          {course.rating   && <span className="card-rating">⭐ {course.rating}</span>}
+          {course.rating   && <span className="card-rating">⭐ {parseFloat(course.rating).toFixed(1)}</span>}
         </div>
 
         <div className="card-actions">

@@ -153,6 +153,7 @@ const HomePage = () => {
   };
 
   const handleToggleSave = async (courseId) => {
+    if (!courseId) return; // Guard against missing courseId
     const isSaved = savedIds.includes(courseId);
     try {
       if (isSaved) {
@@ -168,6 +169,8 @@ const HomePage = () => {
   };
 
   const handleLoadMore = async () => {
+    if (!hasMore || loadingMore) return; // Prevent duplicate requests
+    
     setLoadingMore(true);
     try {
       let data;
@@ -183,23 +186,27 @@ const HomePage = () => {
 
       // Handle both array and paginated response
       const newCourses = Array.isArray(data) ? data : data.content || [];
-      setCourses(prev => [...prev, ...newCourses]);
-      setOffset(newOffset);
+      
+      if (newCourses.length > 0) {
+        setCourses(prev => [...prev, ...newCourses]);
+        setOffset(newOffset);
+      }
       
       // Check if there are more courses
       if (Array.isArray(data)) {
         setHasMore(newCourses.length === 20); // Simple heuristic
       } else {
-        setHasMore(data.hasMore || false);
+        setHasMore(data.hasMore !== false && newCourses.length > 0);
       }
     } catch (err) {
       console.error('Load more error:', err);
+      setHasMore(false);
     } finally {
       setLoadingMore(false);
     }
   };
 
-  const displayCourses = searched ? courses : trending;
+  const displayCourses = searched && courses.length > 0 ? courses : (trending && trending.length > 0 ? trending : []);
 
   return (
     <div className="page">
