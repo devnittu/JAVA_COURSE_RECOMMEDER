@@ -314,7 +314,12 @@ public class RecommendationService {
                 course.getLevel(),
                 course.getRating(),
                 score,
-                course.getThumbnail()
+                course.getThumbnail(),
+                course.getInstructor(),
+                course.getDescription(),
+                course.getDuration(),
+                course.getStudents(),
+                course.getPrice()
         );
     }
 

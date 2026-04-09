@@ -87,7 +87,8 @@ public class DashboardService {
         int end = Math.min(start + limit, courses.size());
         List<CourseDTO> pageContent = courses.subList(start, end).stream()
                 .map(c -> new CourseDTO(c.getId(), c.getTitle(), c.getPlatform(), c.getUrl(),
-                        c.getCategory(), c.getLevel(), c.getRating(), 0, c.getThumbnail()))
+                        c.getCategory(), c.getLevel(), c.getRating(), 0, c.getThumbnail(),
+                        c.getInstructor(), c.getDescription(), c.getDuration(), c.getStudents(), c.getPrice()))
                 .collect(Collectors.toList());
 
         return new PaginatedResponse<>(pageContent, courses.size(), offset, limit);

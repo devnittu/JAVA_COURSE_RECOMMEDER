@@ -51,12 +51,15 @@ public class DashboardController {
                     .filter(Optional::isPresent)
                     .map(Optional::get)
                     .map(c -> new CourseDTO(c.getId(), c.getTitle(), c.getPlatform(),
-                            c.getUrl(), c.getCategory(), c.getLevel(), c.getRating(), 0, c.getThumbnail()))
+                            c.getUrl(), c.getCategory(), c.getLevel(), c.getRating(), 0, c.getThumbnail(),
+                            c.getInstructor(), c.getDescription(), c.getDuration(), c.getStudents(), c.getPrice()))
                     .collect(Collectors.toList());
 
             return ResponseEntity.ok(courses);
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error fetching saved courses: " + e.getMessage()));
         }
     }
 
@@ -83,6 +86,8 @@ public class DashboardController {
             return ResponseEntity.ok(Map.of("message", "Course saved successfully", "saved", true));
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error saving course: " + e.getMessage()));
         }
     }
 
@@ -96,10 +101,17 @@ public class DashboardController {
             @RequestHeader(value = "Authorization", required = false) String authHeader) {
         try {
             Long userId = extractUserId(authHeader);
+            
+            if (userId == null || courseId == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "Invalid user or course ID"));
+            }
+            
             savedCourseRepository.deleteByUserIdAndCourseId(userId, courseId);
             return ResponseEntity.ok(Map.of("message", "Course removed from saved", "saved", false));
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error removing course: " + e.getMessage()));
         }
     }
 
@@ -117,6 +129,8 @@ public class DashboardController {
             return ResponseEntity.ok(ids);
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error fetching saved course IDs: " + e.getMessage()));
         }
     }
 
@@ -143,6 +157,8 @@ public class DashboardController {
             return ResponseEntity.ok(response);
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error filtering saved courses: " + e.getMessage()));
         }
     }
 
@@ -159,6 +175,8 @@ public class DashboardController {
             return ResponseEntity.ok(recommendations);
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error fetching recommendations: " + e.getMessage()));
         }
     }
 
@@ -175,6 +193,8 @@ public class DashboardController {
             return ResponseEntity.ok(stats);
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error fetching stats: " + e.getMessage()));
         }
     }
 
@@ -191,6 +211,8 @@ public class DashboardController {
             return ResponseEntity.ok(result);
         } catch (JWTVerificationException e) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error clearing saved courses: " + e.getMessage()));
         }
     }
 }

@@ -17,4 +17,11 @@ public class CourseDTO {
     private Double rating;
     private int score;
     private String thumbnail;
+    
+    // Phase 2 fields
+    private String instructor;
+    private String description;
+    private String duration;
+    private String students;
+    private String price;
 }
