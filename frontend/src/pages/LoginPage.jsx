@@ -21,12 +21,24 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
     try {
-      const data = await googleAuth(tokenResponse.access_token);
+      console.log('Token response received:', { hasCode: !!tokenResponse.code, hasIdToken: !!tokenResponse.id_token, hasAccessToken: !!tokenResponse.access_token });
+      
+      // useGoogleLogin returns 'code' by default, but we need the id_token
+      // If you get a code, you'd need to exchange it on the backend
+      // For now, ensure we have the correct token
+      const token = tokenResponse.id_token || tokenResponse.access_token;
+      
+      if (!token) {
+        throw new Error('No authentication token received from Google');
+      }
+      
+      const data = await googleAuth(token);
       login(data.user, data.token);
       navigate('/home');
     } catch (err) {
       console.error('Login error:', err);
-      setError('Login failed. Please try again.');
+      const errorMessage = err.response?.data?.message || err.message || 'Login failed. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -34,7 +46,11 @@ const LoginPage = () => {
 
   const loginWithGoogle = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
-    onError: () => setError('Google sign-in was cancelled or failed.'),
+    onError: (error) => {
+      console.error('Google OAuth error:', error);
+      setError('Google sign-in was cancelled or failed.');
+    },
+    flow: 'implicit', // Use implicit flow to get id_token directly
   });
 
   return (

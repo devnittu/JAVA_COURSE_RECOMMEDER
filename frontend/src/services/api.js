@@ -15,6 +15,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// ── Handle response errors globally ──
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      // Token expired or invalid
+      localStorage.removeItem('cr_token');
+      localStorage.removeItem('cr_user');
+    }
+    return Promise.reject(error);
+  }
+);
+
 // ════════════════════════════
 //  Auth
 // ════════════════════════════
